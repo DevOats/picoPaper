@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace DevOats.PicoPaperLib
@@ -54,10 +55,13 @@ namespace DevOats.PicoPaperLib
         /// <summary>
         /// Requests identification information from the device
         /// </summary>
-        public void Ident()
+        public PicoPaperDeviceInfo Ident()
         {
             connection.SendDataByte(PicoPaperCommands.Ident);
             DeviceResponse response = WaitForResponse();
+
+            PicoPaperDeviceInfo identInfo = ParseIdentInfo(response.Message);
+            return identInfo;
         }
 
 
@@ -167,6 +171,36 @@ namespace DevOats.PicoPaperLib
             {
                 return response;
             }
+        }
+
+
+        private PicoPaperDeviceInfo ParseIdentInfo(string message)
+        {
+            PicoPaperDeviceInfo? info;
+
+            JsonSerializerOptions serializeroptions = new()
+            {
+                PropertyNameCaseInsensitive = true
+            };
+
+            try
+            {
+                info = JsonSerializer.Deserialize<PicoPaperDeviceInfo>(message, serializeroptions);
+            }
+            catch(Exception ex)
+            {
+                throw new PicoPaperException($"Could not deserialize device info: {ex.Message}", ex);
+            }
+                
+            if (info == null)
+            {
+                throw new PicoPaperException("Could not deserialize device info");
+            }
+            else
+            {
+                return info;
+            }
+            
         }
     }
 }

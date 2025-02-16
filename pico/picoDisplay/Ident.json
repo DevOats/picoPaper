@@ -5,8 +5,8 @@
         "type": "ePaper",
         "size": "7.5",
         "resolution": {
-            "width": "800",
-            "height": "480"
+            "width": 800,
+            "height": 480
         },
         "color": "BW",
         "format": "1bpp"

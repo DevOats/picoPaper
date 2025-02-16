@@ -20,7 +20,7 @@ namespace DevOats.PicoPaperCmd
                 Console.WriteLine(" i  -  Ident");
                 Console.WriteLine(" c  -  Clear Display");
                 Console.WriteLine(" s  -  Show Splash screen");
-                Console.WriteLine(" d  -  transmit and display test image");
+                Console.WriteLine(" d  -  Transmit and display test image");
                 Console.WriteLine(" r  -  Reset communication protocol");
                 Console.WriteLine();
                 Console.WriteLine();
@@ -33,7 +33,8 @@ namespace DevOats.PicoPaperCmd
                 switch (read)
                 {
                     case 'i':
-                        paper.Ident();
+                        PicoPaperDeviceInfo info = paper.Ident();
+                        PrintDeviceInfo(info);
                         break;
                     case 'c':
                         paper.ClearDisplay();
@@ -58,6 +59,24 @@ namespace DevOats.PicoPaperCmd
             paper.Disconnect();
 
         }
+
+
+        private static void PrintDeviceInfo(PicoPaperDeviceInfo info)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Device info:");
+            Console.WriteLine($"   Device:    {info.Device}    ");
+            Console.WriteLine($"   Version:   {info.Version}   ");
+            Console.WriteLine($"   Display:                    ");
+            Console.WriteLine($"              Type:        {info.Display.Type}");
+            Console.WriteLine($"              Size:        {info.Display.Size}");
+            Console.WriteLine($"              Resolution:      ");
+            Console.WriteLine($"                           Width:   {info.Display.Resolution.Width}");
+            Console.WriteLine($"                           Height:  {info.Display.Resolution.Height}");
+            Console.WriteLine($"              Color:       {info.Display.Color}");
+            Console.WriteLine($"              Format:      {info.Display.Format}");
+        }
+
 
         private static Bitmap CreateTestBitmap()
         {
