@@ -9,11 +9,17 @@ using System.Threading;
 namespace DevOats.PicoPaperLib
 {
 
+    public delegate void ResponseReceivedDelegate(DeviceResponse data);
+
     /// <summary>
     /// Represents and handles the connection to PicoPaper device over the serial port and the low-level protocol
     /// </summary>
     internal class SerialPortConnector
     {
+
+        private const string responseMsgAckStart = "~ACK#";
+        private const string responseMsgErrorStart = "~ERR#";
+        private const string responseMsgEnd = "^";
 
         private char DatabyteStartChar = ':';
         private char ProtocolResetChar = '/';
@@ -27,6 +33,7 @@ namespace DevOats.PicoPaperLib
         private SerialPort serialPort = new SerialPort();
         private Thread readerThread;
 
+        private ResponseReceivedDelegate? responseReceivedHandler = null;
 
         /// <summary>
         /// Gets whether the serial port is open
@@ -51,10 +58,20 @@ namespace DevOats.PicoPaperLib
 
 
         /// <summary>
+        /// Sets the handler for when a response is received
+        /// </summary>
+        /// <param name="handler"></param>
+        public void SetOnResponseReceived(ResponseReceivedDelegate handler)
+        {
+            responseReceivedHandler = handler;
+        }
+
+
+        /// <summary>
         /// Connects to the PicoPaper device over the specified serial port
         /// </summary>
         /// <param name="portName">The port name (e.g. "com4")</param>
-        /// <exception cref="PicoPaperConnectionException"></exception>
+        /// <exception cref="PicoPaperException"></exception>
         public void Connect(string portName)
         {
             try
@@ -75,7 +92,7 @@ namespace DevOats.PicoPaperLib
             }
             catch(Exception ex)
             {
-                throw new PicoPaperConnectionException($"Could not open the serial port to the PicoPaper device. Error: {ex.Message}", ex);
+                throw new PicoPaperException($"Could not open the serial port to the PicoPaper device. Error: {ex.Message}", ex);
             }
         }
 
@@ -130,14 +147,51 @@ namespace DevOats.PicoPaperLib
         {
             while (serialPort.IsOpen)
             {
+                string rx = String.Empty;
                 try
                 {
-                    char message = (char)serialPort.ReadChar();
-                    Console.Write(message);
+                    rx = serialPort.ReadLine();
+                    
                 }
                 catch (TimeoutException) { }    // Is to be expected every 500ms because we told it to
                 catch (OperationCanceledException) { }  // Gets thrown when we close the serial port
+
+                if (rx != String.Empty)
+                {
+                    ProcessReceivedMessage(rx);
+                }
             }
+        }
+
+
+        private void ProcessReceivedMessage(string rawMessage)
+        {
+            ResponseTypes responseType;
+            string message = rawMessage;
+            
+            message = message.Trim();
+
+            if (message.StartsWith(responseMsgAckStart) && message.EndsWith(responseMsgEnd))
+            {
+                responseType = ResponseTypes.Ack;
+                message = message.Remove(0, responseMsgAckStart.Length);
+                message = message.Remove(message.Length - responseMsgEnd.Length);
+            }
+            else if (message.StartsWith(responseMsgErrorStart) && message.EndsWith(responseMsgEnd))
+            {
+                responseType = ResponseTypes.Error;
+                message = message.Remove(0, responseMsgErrorStart.Length);
+                message = message.Remove(message.Length - responseMsgEnd.Length);
+            }
+            else
+            {
+                responseType = ResponseTypes.Invalid;
+            }
+
+            message = message.Trim();
+
+            DeviceResponse response = new DeviceResponse(message, responseType);
+            responseReceivedHandler?.Invoke(response);
         }
 
     }

@@ -28,6 +28,8 @@ namespace DevOats.PicoPaperCmd
 
                 char read = Console.ReadKey().KeyChar;
 
+                
+
                 switch (read)
                 {
                     case 'i':

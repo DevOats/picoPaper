@@ -23,9 +23,15 @@ rxFunctionStates rxFunctionState = RX_FUNCTION_IDLE;
 
 const char BYTE_START_CHAR = ':';
 const char UART_RESET_CHAR = '/';
-const char* ACK_MESSAGE = "~ACK#\0";
+
+const char* ACK_IMAGE_RECEIVED_MSG = "IMG_RCVD\0";
+const char* ACK_CLEAR_DISPLAY_MSG = "CLR_SCR\0";
+const char* ACK_SPLASH_SCREEN_MSG = "SPLASH\0";
+const char* ACK_DISPLAY_IMG_BUFFER = "DISPLAY\0";
+
+const char* ACK_MESSAGE_START = "~ACK#\0";
 const char* ERROR_MESSAGE_START = "~ERR#\0";
-const char* ERROR_MESSAGE_END = "^\0";
+const char* MESSAGE_END = "^\n\0";
 
 const UBYTE CMD_DEVICE_IDENT = 0x01;
 const UBYTE CMD_IMG_RX = 0x02;
@@ -34,29 +40,29 @@ const UBYTE CMD_CLEAR_DISPLAY = 0x04;
 const UBYTE CMD_DISPLAY_SPLASH = 0x05;
 
 
-char* identString = "{\r\n"
-"    \"device\": \"pi"
-"coPaper\",\r\n"
-"    \"version\": \"1"
-".0.0\",\r\n"
-"    \"Display\":{\r"
-"\n"
-"        \"type\": \""
-"ePaper\",\r\n"
-"        \"size\": \""
-"7.5\",\r\n"
-"        \"resolution"
-"\": {\r\n"
-"            \"width"
-"\": \"800\",\r\n"
-"            \"height"
-"\": \"480\"\r\n"
-"        },\r\n"
-"        \"color\": "
-"\"BW\",\r\n"
-"        \"format\": "
-"\"1bpp\"\r\n"
-"    }\r\n"
+char* identString = "{"
+"\"device\":\"pi"
+"coPaper\","
+"\"version\":\"1"
+".0.0\","
+"\"Display\":{"
+""
+"\"type\":\""
+"ePaper\","
+"\"size\":\""
+"7.5\","
+"\"resolution"
+"\":{"
+"\"width"
+"\":\"800\","
+"\"height"
+"\":\"480\""
+"},"
+"\"color\":"
+"\"BW\","
+"\"format\":"
+"\"1bpp\""
+"}"
 "}\0";
 
 
@@ -80,13 +86,14 @@ void resetByteMsgRx(void);
 void startByteMsgRx(void);
 void resetByteMsgRx(void);
 void resetUartStateMachine(void);
-
-
+void sendAckMessage(const char* message);
+void sendErrorMessage(const char* message);
+void showSplashScreen(void);
 
 void picoDisplay_run(void)
 {
     initialize();
-    runDisplaySplashScreenCommand();
+    showSplashScreen();
     listenOnUart();
 }
 
@@ -117,7 +124,7 @@ void listenOnUart(void){
                 default:
                     printf(ERROR_MESSAGE_START);
                     printf("Unsupported RxByteState");
-                    printf(ERROR_MESSAGE_END);
+                    printf(MESSAGE_END);
                     break;
             }
         }
@@ -157,8 +164,8 @@ void listenForStartCharacter(char character){
     else{
         // Unexpected character
         printf(ERROR_MESSAGE_START);
-        printf("Unexpected Character: %c\n", character);
-        printf(ERROR_MESSAGE_END);
+        printf("Unexpected Character: %c ", character);
+        printf(MESSAGE_END);
     }
 }
 
@@ -188,7 +195,7 @@ void receveiveMsgByte(char character){
                 // Failed to parse the received characters into a byte
                 printf(ERROR_MESSAGE_START);
                 printf("Failed to parse hex characters to a byte");
-                printf(ERROR_MESSAGE_END);
+                printf(MESSAGE_END);
             }
             resetByteMsgRx();            
         }
@@ -211,7 +218,7 @@ void ProcessByteReceived(UBYTE msg){
             // Unsupported RxFunctionState 
             printf(ERROR_MESSAGE_START);
             printf("Unsupported RxFunctionState");
-            printf(ERROR_MESSAGE_END);
+            printf(MESSAGE_END);
             break;
     }
 }
@@ -220,7 +227,7 @@ void ProcessByteReceived(UBYTE msg){
 void selectNewRxFuntion(UBYTE msg){
     switch(msg){
         case CMD_DEVICE_IDENT:
-            printf(identString);
+            sendAckMessage(identString);
             rxFunctionState = RX_FUNCTION_IDLE;
             break;
         case CMD_IMG_RX:
@@ -242,12 +249,20 @@ void selectNewRxFuntion(UBYTE msg){
             break;
         default:
             // Unsuppported command
-            printf(ERROR_MESSAGE_START);
-            printf("Unsupported command: 0x%2x\n", msg);
-            printf(ERROR_MESSAGE_END);
+            sendErrorMessage("Unsupported command: 0x%2x");
             rxFunctionState = RX_FUNCTION_IDLE;
             break;
     }
+}
+
+
+void sendAckMessage(const char* message){
+    printf("%s%s%s", ACK_MESSAGE_START, message, MESSAGE_END);
+}
+
+
+void sendErrorMessage(const char* message){
+    printf("%s%s%s", ERROR_MESSAGE_START, message, MESSAGE_END);
 }
 
 
@@ -260,7 +275,7 @@ void receiveNextImageByte(UBYTE msg){
     
     if(imageRxIndex >= ImagesizeInBytes){
         //printf("Image received\n");
-        printf(ACK_MESSAGE);
+        sendAckMessage(ACK_IMAGE_RECEIVED_MSG);
         rxFunctionState = RX_FUNCTION_IDLE;
     }
 }
@@ -272,14 +287,18 @@ void runClearDisplayCommand(void){
     EPD_7IN5_V2_Init();
     EPD_7IN5_V2_Clear();
     EPD_7IN5_V2_Sleep();
-    DEV_Delay_ms(200);
-    printf(ACK_MESSAGE);
+    DEV_Delay_ms(50);
+    sendAckMessage(ACK_CLEAR_DISPLAY_MSG);
 }
-
 
 void runDisplaySplashScreenCommand(){
     //printf("Received command to display splash screen\n");
+    showSplashScreen();    
+    sendAckMessage(ACK_SPLASH_SCREEN_MSG);
+}
 
+
+void showSplashScreen(void){
     EPD_7IN5_V2_Init();
     Paint_SelectImage(BlackImage, EPD_7IN5_V2_WIDTH, EPD_7IN5_V2_HEIGHT);
     Paint_Clear(WHITE);
@@ -297,9 +316,7 @@ void runDisplaySplashScreenCommand(){
 
     EPD_7IN5_V2_Display(BlackImage);
     EPD_7IN5_V2_Sleep();
-    DEV_Delay_ms(200);
-    printf(ACK_MESSAGE);
-
+    DEV_Delay_ms(50);
 }
 
 
@@ -309,8 +326,8 @@ void runDisplayImageCommand(){
     EPD_7IN5_V2_Init();
     EPD_7IN5_V2_Display(BlackImage);
     EPD_7IN5_V2_Sleep();
-    DEV_Delay_ms(200);
-    printf(ACK_MESSAGE);
+    DEV_Delay_ms(50);
+    sendAckMessage(ACK_DISPLAY_IMG_BUFFER);
 }
 
 

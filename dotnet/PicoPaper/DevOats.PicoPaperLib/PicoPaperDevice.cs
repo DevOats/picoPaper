@@ -14,7 +14,14 @@ namespace DevOats.PicoPaperLib
     public class PicoPaperDevice
     {
 
+        private AutoResetEvent responseWaitSignaller = new AutoResetEvent(false);
         private SerialPortConnector connection = new SerialPortConnector();
+        private volatile DeviceResponse? lastResponse;
+
+        private string AckMessageImageReceived = "IMG_RCVD";
+        private string AckMessageClearDisplay = "CLR_SCR";
+        private string AckMessageSplashScreen = "SPLASH";
+        private string AckMessageBufferDisplayed = "DISPLAY";
 
         /// <summary>
         /// Gets whether the serial port is connected
@@ -26,6 +33,12 @@ namespace DevOats.PicoPaperLib
                 return connection.IsConnected;
             }
         }
+
+        public PicoPaperDevice()
+        {
+            connection.SetOnResponseReceived(OnResponseReceived);
+        }
+
 
         /// <summary>
         /// Open the connection to the PicoPaper device on the specified COM port
@@ -44,6 +57,7 @@ namespace DevOats.PicoPaperLib
         public void Ident()
         {
             connection.SendDataByte(PicoPaperCommands.Ident);
+            DeviceResponse response = WaitForResponse();
         }
 
 
@@ -53,6 +67,9 @@ namespace DevOats.PicoPaperLib
         public void ShowSplash()
         {
             connection.SendDataByte(PicoPaperCommands.ShowSplashScreen);
+            DeviceResponse response = WaitForResponse();
+
+            ValidateAck(response, AckMessageSplashScreen);
         }
 
 
@@ -62,6 +79,8 @@ namespace DevOats.PicoPaperLib
         public void ClearDisplay()
         {
             connection.SendDataByte(PicoPaperCommands.ClearDisplay);
+            DeviceResponse response = WaitForResponse();
+            ValidateAck(response, AckMessageClearDisplay);
         }
 
 
@@ -81,8 +100,7 @@ namespace DevOats.PicoPaperLib
         {
             // Clear the screen to prevent damage during long term storage
             // ToDo: Decide whether this should really be here :/
-            ClearDisplay();
-            Thread.Sleep(500);
+            connection.SendDataByte(PicoPaperCommands.ClearDisplay);    // Send the instruction without waiting for the response
             connection.Disconnect();
         }
 
@@ -104,7 +122,51 @@ namespace DevOats.PicoPaperLib
 
             connection.SendDataByte(PicoPaperCommands.StartImageTx);
             connection.SendDataBytes(imgData);
+            DeviceResponse response = WaitForResponse();
+            ValidateAck(response, AckMessageImageReceived);
+
             connection.SendDataByte(PicoPaperCommands.DisplayImageBuffer);
+            response = WaitForResponse();
+            ValidateAck(response, AckMessageBufferDisplayed);
+
+        }
+
+
+        private void ValidateAck(DeviceResponse response, string ackMessage)
+        {
+            if(response.ResponseType == ResponseTypes.Error)
+            {
+                throw new PicoPaperException($"PicoPaper device error: {response.Message}");
+            }
+
+            if ((response.ResponseType != ResponseTypes.Ack) || (response.Message != ackMessage))
+            {
+                throw new PicoPaperException($"Unexpected device message received: {response.Message}");
+            }
+        }
+
+
+        private void OnResponseReceived(DeviceResponse response)
+        {
+            lastResponse = response;
+            responseWaitSignaller.Set();
+        }
+
+
+        private DeviceResponse WaitForResponse()
+        {
+            responseWaitSignaller.WaitOne(20000);
+            DeviceResponse? response = lastResponse;
+            lastResponse = null;
+
+            if (response == null)
+            {
+                throw new ArgumentNullException("lastResponse", "No response received from device");
+            }
+            else
+            {
+                return response;
+            }
         }
     }
 }
