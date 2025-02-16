@@ -1,7 +1,8 @@
 # PicoPaper
-A framework to display images on a WaveShare e-paper display with a PC, using a Raspberry Pi Pico 2.
-This framework was written for my own need and use case. I published it hoping others will benefit from this as well. Please have a look at the MIT license below and know that there's no warranty of any kind.
-Happy coding!
+A framework to display images on a WaveShare e-paper display with a PC, using a Raspberry Pi Pico 2.  
+This framework was written for my own need and use case. I published it hoping others will benefit from this as well. Please have a look at the MIT license below and know that there's no warranty of any kind.  
+  
+Happy coding:)   
 Joost
 
 ## Requirements and support
