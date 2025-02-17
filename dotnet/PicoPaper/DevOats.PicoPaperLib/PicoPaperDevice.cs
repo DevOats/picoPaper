@@ -100,11 +100,15 @@ namespace DevOats.PicoPaperLib
         /// <summary>
         /// Gracefully disconnects fromt the device by first clearing the display and then closing the serial port
         /// </summary>
-        public void Disconnect()
+        /// <param name="clearDisplay">When true (default), the Clear Display command will be issues before disconnecting to prevent damage during storage</param>
+        public void Disconnect(bool clearDisplay = true)
         {
-            // Clear the screen to prevent damage during long term storage
-            // ToDo: Decide whether this should really be here :/
-            connection.SendDataByte(PicoPaperCommands.ClearDisplay);    // Send the instruction without waiting for the response
+            if (clearDisplay)
+            {
+                // Clear the screen to prevent damage during long term storage
+                // Send the instruction without waiting for the response
+                connection.SendDataByte(PicoPaperCommands.ClearDisplay);    
+            }
             connection.Disconnect();
         }
 

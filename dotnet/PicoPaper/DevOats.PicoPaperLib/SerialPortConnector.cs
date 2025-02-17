@@ -87,7 +87,7 @@ namespace DevOats.PicoPaperLib
                 serialPort.ReadTimeout = 500;
                 serialPort.WriteTimeout = 500;
                 serialPort.Open();
-
+                
                 readerThread.Start();
             }
             catch(Exception ex)

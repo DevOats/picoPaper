@@ -1,4 +1,6 @@
-﻿using DevOats.PicoPaperLib;
+﻿using DevOats.PicoPaper;
+using DevOats.PicoPaperLib;
+using PowerArgs;
 using System.Drawing;
 
 namespace DevOats.PicoPaperCmd
@@ -7,10 +9,68 @@ namespace DevOats.PicoPaperCmd
     {
         static void Main(string[] args)
         {
+
+            if (args.Length == 0)
+            {
+                RunInteractiveMode();
+            }
+            else
+            {
+                RunAsCmdLineTool(args);
+            }
+        }
+
+
+        private static void RunAsCmdLineTool(string[] args)
+        {
+            try
+            {
+                var arguments = Args.InvokeAction<ApplicationArgsRunner>(args);
+            }
+            catch (ArgException e)
+            {
+                Console.WriteLine(e.Message);
+                Console.WriteLine(ArgUsage.GenerateUsageFromTemplate<ApplicationArgsRunner>());
+            }
+        }
+
+
+        private static void RunInteractiveMode()
+        {
             bool doRun = true;
+
+            Console.WriteLine("");
+            Console.WriteLine("PicoPaper utility");
+            Console.WriteLine("(c) 2025: DevOats");
+            Console.WriteLine("");
+            Console.Write("COM port number to connect to: ");
+            string? portNumberString = Console.ReadLine();
+
+            int portNumber = 0;
+
+            try
+            {
+                if (portNumberString != null)
+                {
+                    portNumber = Int32.Parse(portNumberString);
+                }
+                else
+                {
+                    Console.WriteLine($"Invalid COM port number '{portNumberString}'");
+                    return;
+                }
+            }
+            catch (FormatException ex) 
+            {
+                Console.WriteLine($"Invalid COM port number '{portNumberString}'. {ex.Message}", ex);
+                return;
+            }
+
+            string comPort = $"com{portNumber}";
+
             PicoPaperDevice paper = new PicoPaperDevice();
 
-            paper.Connect("com4");
+            paper.Connect(comPort);
 
 
             while (doRun)
@@ -27,8 +87,6 @@ namespace DevOats.PicoPaperCmd
                 Console.WriteLine(" x  -  Exit");
 
                 char read = Console.ReadKey().KeyChar;
-
-                
 
                 switch (read)
                 {
@@ -53,15 +111,12 @@ namespace DevOats.PicoPaperCmd
                         break;
 
                 }
-
             }
 
             paper.Disconnect();
-
         }
 
-
-        private static void PrintDeviceInfo(PicoPaperDeviceInfo info)
+        public static void PrintDeviceInfo(PicoPaperDeviceInfo info)
         {
             Console.WriteLine();
             Console.WriteLine("Device info:");
@@ -95,7 +150,6 @@ namespace DevOats.PicoPaperCmd
             gr.FillEllipse(Brushes.Black, 200, 400, 50, 50);
 
             Font font = new Font("Times New Roman", 30.0f);
-
 
             gr.DrawString("It works :) !!", font, Brushes.Black, 400, 50);
 

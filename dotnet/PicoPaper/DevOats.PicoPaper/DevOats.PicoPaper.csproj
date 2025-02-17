@@ -9,7 +9,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="PowerArgs" Version="4.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DevOats.PicoPaperLib\DevOats.PicoPaperLib.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="PicoPaper demo.bmp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

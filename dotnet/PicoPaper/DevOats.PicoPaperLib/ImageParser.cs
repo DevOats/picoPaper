@@ -32,7 +32,7 @@ namespace DevOats.PicoPaperLib
             Color sourceColor;
             BwColors destinationColor;
 
-            int dataSize = SetDataLength(bmp.Width, bmp.Height);
+            int dataSize = GetDataLength(bmp.Width, bmp.Height);
             widthByte = GetWidthByte(bmp.Width);
 
             byte[] result = new byte[dataSize];
@@ -69,7 +69,7 @@ namespace DevOats.PicoPaperLib
         /// <param name="width"></param>
         /// <param name="height"></param>
         /// <returns></returns>
-        private int SetDataLength(int width, int height)
+        private int GetDataLength(int width, int height)
         {
             return ((width % 8 == 0) ? (width / 8) : (width / 8 + 1)) * height;
         }
