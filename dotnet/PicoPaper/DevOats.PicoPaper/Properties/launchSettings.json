@@ -3,7 +3,7 @@
     "DevOats.PicoPaper": {
       "commandName": "Project",
       //"commandLineArgs": "-d com4 \"PicoPaper demo.bmp\" "
-      "commandLineArgs": "-c com4 "
+      //"commandLineArgs": "-c com4 "
     }
   }
 }

@@ -24,6 +24,7 @@ namespace DevOats.PicoPaperLib
         private string AckMessageSplashScreen = "SPLASH";
         private string AckMessageBufferDisplayed = "DISPLAY";
 
+
         /// <summary>
         /// Gets whether the serial port is connected
         /// </summary>
@@ -34,6 +35,7 @@ namespace DevOats.PicoPaperLib
                 return connection.IsConnected;
             }
         }
+
 
         public PicoPaperDevice()
         {
@@ -57,11 +59,17 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public PicoPaperDeviceInfo Ident()
         {
-            connection.SendDataByte(PicoPaperCommands.Ident);
-            DeviceResponse response = WaitForResponse();
-
-            PicoPaperDeviceInfo identInfo = ParseIdentInfo(response.Message);
-            return identInfo;
+            try
+            {
+                connection.SendDataByte(PicoPaperCommands.Ident);
+                DeviceResponse response = WaitForResponse();
+                PicoPaperDeviceInfo identInfo = ParseIdentInfo(response.Message);
+                return identInfo;
+            }
+            catch (IOException ex)
+            {
+                throw new PicoPaperException($"Communication Exception getting Identification information: " + ex.Message, ex);
+            }
         }
 
 
@@ -70,10 +78,16 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public void ShowSplash()
         {
-            connection.SendDataByte(PicoPaperCommands.ShowSplashScreen);
-            DeviceResponse response = WaitForResponse();
-
-            ValidateAck(response, AckMessageSplashScreen);
+            try
+            {
+                connection.SendDataByte(PicoPaperCommands.ShowSplashScreen);
+                DeviceResponse response = WaitForResponse();
+                ValidateAck(response, AckMessageSplashScreen);
+            }
+            catch (IOException ex)
+            {
+                throw new PicoPaperException($"Communication Exception while showing splash screen: " + ex.Message, ex);
+            }
         }
 
 
@@ -82,9 +96,16 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public void ClearDisplay()
         {
-            connection.SendDataByte(PicoPaperCommands.ClearDisplay);
-            DeviceResponse response = WaitForResponse();
-            ValidateAck(response, AckMessageClearDisplay);
+            try
+            {
+                connection.SendDataByte(PicoPaperCommands.ClearDisplay);
+                DeviceResponse response = WaitForResponse();
+                ValidateAck(response, AckMessageClearDisplay);
+            }
+            catch (IOException ex)
+            {
+                throw new PicoPaperException($"Communication Exception while clearing display: " + ex.Message, ex);
+            }
         }
 
 
@@ -93,7 +114,14 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public void ResetCommProtocol()
         {
-            connection.ResetCommProtocol();
+            try
+            {
+                connection.ResetCommProtocol();
+            }
+            catch (IOException ex)
+            {
+                throw new PicoPaperException($"Communication Exception while resetting protocol: " + ex.Message, ex);
+            }
         }
 
 
@@ -119,24 +147,29 @@ namespace DevOats.PicoPaperLib
         /// <param name="image">The image to be displayed</param>
         public void DisplayBitmap(Bitmap image)
         {
-
-            if((image.Width != 800) || (image.Height != 480))
+            try
             {
-                throw new ArgumentException("Unsupported image dimensions. Only 800 x 480 is supported");
+                if ((image.Width != 800) || (image.Height != 480))
+                {
+                    throw new ArgumentException("Unsupported image dimensions. Only 800 x 480 is supported");
+                }
+
+                ImageParser parser = new ImageParser();
+                byte[] imgData = parser.ParseBitmap(image);
+
+                connection.SendDataByte(PicoPaperCommands.StartImageTx);
+                connection.SendDataBytes(imgData);
+                DeviceResponse response = WaitForResponse();
+                ValidateAck(response, AckMessageImageReceived);
+
+                connection.SendDataByte(PicoPaperCommands.DisplayImageBuffer);
+                response = WaitForResponse();
+                ValidateAck(response, AckMessageBufferDisplayed);
+
+            } catch(IOException ex)
+            {
+                throw new PicoPaperException($"Communication Exception while displaying image: " + ex.Message, ex);
             }
-
-            ImageParser parser = new ImageParser();
-            byte[] imgData = parser.ParseBitmap(image);
-
-            connection.SendDataByte(PicoPaperCommands.StartImageTx);
-            connection.SendDataBytes(imgData);
-            DeviceResponse response = WaitForResponse();
-            ValidateAck(response, AckMessageImageReceived);
-
-            connection.SendDataByte(PicoPaperCommands.DisplayImageBuffer);
-            response = WaitForResponse();
-            ValidateAck(response, AckMessageBufferDisplayed);
-
         }
 
 

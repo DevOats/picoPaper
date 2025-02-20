@@ -30,10 +30,11 @@ namespace DevOats.PicoPaperLib
         private const StopBits DefaultStopBits = StopBits.One;
         private const Handshake DefaultHandshake = Handshake.None;
 
-        private SerialPort serialPort = new SerialPort();
-        private Thread readerThread;
+        private SerialPort? serialPort = null;
+        private Thread? readerThread;
 
         private ResponseReceivedDelegate? responseReceivedHandler = null;
+        private string serialPortName = string.Empty;
 
         /// <summary>
         /// Gets whether the serial port is open
@@ -41,7 +42,14 @@ namespace DevOats.PicoPaperLib
         public bool IsConnected { 
             get
             {
-                return serialPort.IsOpen;
+                if(serialPort != null){
+                    return serialPort.IsOpen;
+                }
+                else
+                {
+                    return false;
+                }
+
             }
         }
 
@@ -51,9 +59,22 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public SerialPortConnector()
         {
+            
+        }
+
+
+        private void StartreaderThread()
+        {
+            if(readerThread != null)
+            {
+                readerThread.Interrupt();
+                readerThread = null;
+            }
+
             readerThread = new Thread(ReadThreadMethod);
             readerThread.IsBackground = true;
             readerThread.Name = "SerialPortReader";
+            readerThread.Start();
         }
 
 
@@ -74,9 +95,19 @@ namespace DevOats.PicoPaperLib
         /// <exception cref="PicoPaperException"></exception>
         public void Connect(string portName)
         {
+            this.serialPortName = portName;
+
+            if (serialPort != null)
+            {
+                serialPort.Dispose();
+                serialPort = null;
+            }
+
+            serialPort = new SerialPort();
+
             try
             {
-                serialPort.PortName = portName;
+                serialPort.PortName = serialPortName;
                 serialPort.BaudRate = DefaultBaudrate;
                 serialPort.Parity = DefaultParity;
                 serialPort.DataBits = DefaultDataBits;
@@ -87,8 +118,8 @@ namespace DevOats.PicoPaperLib
                 serialPort.ReadTimeout = 500;
                 serialPort.WriteTimeout = 500;
                 serialPort.Open();
-                
-                readerThread.Start();
+
+                StartreaderThread();
             }
             catch(Exception ex)
             {
@@ -102,7 +133,7 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public void Disconnect()
         {
-            serialPort.Close();
+            serialPort?.Close();
         }
 
 
@@ -111,7 +142,7 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public void ResetCommProtocol()
         {
-            serialPort.Write($"{ProtocolResetChar}");
+            serialPort?.Write($"{ProtocolResetChar}");
         }
 
 
@@ -126,7 +157,13 @@ namespace DevOats.PicoPaperLib
             builder.AppendFormat("{0:x2}", data);
 
             string message = builder.ToString();
-            serialPort.Write(message);
+
+            if ((serialPort == null) || !serialPort.IsOpen)
+            {
+                Connect(serialPortName);
+            }
+
+            serialPort?.Write(message);
         }
 
 
@@ -145,22 +182,26 @@ namespace DevOats.PicoPaperLib
 
         private void ReadThreadMethod()
         {
-            while (serialPort.IsOpen)
+            try
             {
-                string rx = String.Empty;
-                try
+                while (IsConnected)
                 {
-                    rx = serialPort.ReadLine();
-                    
-                }
-                catch (TimeoutException) { }    // Is to be expected every 500ms because we told it to
-                catch (OperationCanceledException) { }  // Gets thrown when we close the serial port
+                    string? rx = String.Empty;
+                    try
+                    {
+                        rx = serialPort?.ReadLine();
 
-                if (rx != String.Empty)
-                {
-                    ProcessReceivedMessage(rx);
+                    }
+                    catch (TimeoutException) { }    // Is to be expected every 500ms because we told it to
+                    catch (OperationCanceledException) { }  // Gets thrown when we close or disconnect the serial port
+
+                    if (!String.IsNullOrEmpty(rx))
+                    {
+                        ProcessReceivedMessage(rx);
+                    }
                 }
             }
+            catch (ThreadInterruptedException) { }
         }
 
 
