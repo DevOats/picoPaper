@@ -122,6 +122,8 @@ namespace DevOats.PicoPaperCmd
             Console.WriteLine("Device info:");
             Console.WriteLine($"   Device:    {info.Device}    ");
             Console.WriteLine($"   Version:   {info.Version}   ");
+            Console.WriteLine($"   Board:     {info.Board}     ");
+            Console.WriteLine($"   ID:        {info.Id}   ");
             Console.WriteLine($"   Display:                    ");
             Console.WriteLine($"              Type:        {info.Display.Type}");
             Console.WriteLine($"              Size:        {info.Display.Size}");

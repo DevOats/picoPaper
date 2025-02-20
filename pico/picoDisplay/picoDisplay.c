@@ -43,30 +43,32 @@ const UBYTE CMD_CLEAR_DISPLAY = 0x04;
 const UBYTE CMD_DISPLAY_SPLASH = 0x05;
 
 
+const char* ident_device = "PicoPaper\0";
+const char* ident_version = "1.0.0\0";
+const char* ident_display_type = "ePaper\0";
+const char* ident_display_size = "7.5\0";
+const int ident_display_width = 800;
+const int ident_display_height = 480;
+const char* ident_display_color = "BW\0";
+const char* ident_display_format = "1bpp\0";
+const char* ident_board = "Raspberry Pi Pico 2W\0";
+
 char* identString = "{"
-"\"device\":\"pi"
-"coPaper\","
-"\"version\":\"1"
-".0.0\","
+"\"device\":\"%s\","
+"\"version\":\"%s\","
+"\"id\":\"%s\","
+"\"board\":\"%s\","
 "\"Display\":{"
-""
-"\"type\":\""
-"ePaper\","
-"\"size\":"
-"\"7.5\","
-"\"resolution"
+"\"type\":\"%s\","
+"\"size\":\"%s\","
+"\"Resolution"
 "\":{"
-"\"width"
-"\":800,"
-"\"height"
-"\":480"
+"\"width\":%d,"
+"\"height\":%d"
 "},"
-"\"color\":"
-"\"BW\","
-"\"format\":"
-"\"1bpp\""
-"}"
-"}\0";
+"\"color\":\"%s\","
+"\"format\":\"%s\""
+"}}\0";
 
 
 char messageByteString[3];
@@ -95,8 +97,8 @@ void sendDebugMessage(const char* message);
 void showSplashScreen(void);
 void runIdentCommand(void);
 void getPicoSerialNumber(char* idChars);
-char* createIdentJson(void);
-
+int createIdentJson(char* identJson, int maxLength);
+int buildIdentString(char* targetString, int length, char* serial);
 
 
 void picoDisplay_run(void)
@@ -124,13 +126,37 @@ void getPicoSerialNumber(char* idChars) {
 }
 
 
-char* createIdentJson(){
+ int createIdentJson(char* identJson, int maxLength){
 
     char serialString[17];
     getPicoSerialNumber(serialString);
 
-    sendDebugMessage(serialString);
+    int stringLength = buildIdentString(NULL, 0, serialString);
+    stringLength += 1;  // For the null terminator
 
+    if(stringLength > maxLength){
+        return -1;
+    }
+    buildIdentString(identJson, stringLength, serialString);
+    return stringLength;
+}
+
+
+int buildIdentString(char* targetString, int length, char* serial){
+    
+    int strLen = snprintf(targetString, length, identString, 
+        ident_device, 
+        ident_version, 
+        serial, 
+        ident_board, 
+        ident_display_type, 
+        ident_display_size, 
+        ident_display_width, 
+        ident_display_height, 
+        ident_display_color, 
+        ident_display_format);
+
+        return strLen;
 }
 
 
@@ -164,7 +190,6 @@ void listenOnUart(void){
                     break;
             }
         }
-
     }
 }
 
@@ -322,10 +347,21 @@ void receiveNextImageByte(UBYTE msg){
 
 
 void runIdentCommand(){
-    
-    sendAckMessage(identString);
-    createIdentJson();
+
+    int jsonMaxLength = 256;
+    char identJson[jsonMaxLength];
+
+    int written = createIdentJson(identJson, jsonMaxLength);
+
+    if(written > 1){
+        sendAckMessage(identJson);
+    }
+    else{
+        sendErrorMessage("Failed to create identJson");
+    }
 }
+
+
 
 
 void runClearDisplayCommand(void){
@@ -350,13 +386,48 @@ void showSplashScreen(void){
     Paint_SelectImage(BlackImage, EPD_7IN5_V2_WIDTH, EPD_7IN5_V2_HEIGHT);
     Paint_Clear(WHITE);
 
-    Paint_DrawString_EN(320, 160, "Pico Paper", &Font24, BLACK, WHITE);
-    Paint_DrawString_EN(315, 200, "(c) 2025 DevOats", &Font16, BLACK, WHITE);
-    Paint_DrawString_EN(320, 300, "WaveShare 7.5\" e-Paper", &Font12, BLACK, WHITE);
-    Paint_DrawString_EN(320, 315, "Black/White", &Font12, BLACK, WHITE);
-    Paint_DrawString_EN(320, 330, "800 x 480", &Font12, BLACK, WHITE);
 
-    Paint_DrawString_EN(230, 450, "Use the PicoPaper PC application to display images", &Font12, BLACK, WHITE);
+    char idString[17];
+    getPicoSerialNumber(idString);
+
+    Paint_DrawRectangle(300, 100, 500, 140, BLACK, DOT_PIXEL_3X3, DRAW_FILL_EMPTY);
+
+    Paint_DrawString_EN(315, 110, "Pico Paper", &Font24, BLACK, WHITE);
+    Paint_DrawString_EN(310, 160, "(c) 2025 DevOats", &Font16, BLACK, WHITE);
+
+    Paint_DrawLine(295, 240, 295, 370, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+    Paint_DrawLine(320, 300, 320, 370, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+
+    Paint_DrawString_EN(300, 240, "Version:", &Font12, BLACK, WHITE);
+    Paint_DrawString_EN(400, 240, ident_version, &Font12, BLACK, WHITE);
+
+    Paint_DrawString_EN(300, 255, "Board:", &Font12, BLACK, WHITE);
+    Paint_DrawString_EN(400, 255, ident_board, &Font12, BLACK, WHITE);
+
+    Paint_DrawString_EN(300, 270, "ID:", &Font12, BLACK, WHITE);
+    Paint_DrawString_EN(400, 270, idString, &Font12, BLACK, WHITE);
+
+    Paint_DrawString_EN(300, 285, "Display:", &Font12, BLACK, WHITE);
+
+    Paint_DrawString_EN(325, 300, "Type:", &Font12, BLACK, WHITE);
+    Paint_DrawString_EN(450, 300, ident_display_type, &Font12, BLACK, WHITE);
+
+    Paint_DrawString_EN(325, 315, "Size:", &Font12, BLACK, WHITE);
+    Paint_DrawString_EN(450, 315, ident_display_size, &Font12, BLACK, WHITE);
+
+    Paint_DrawString_EN(325, 330, "Color:", &Font12, BLACK, WHITE);
+    Paint_DrawString_EN(450, 330, ident_display_color, &Font12, BLACK, WHITE);
+
+    Paint_DrawString_EN(325, 345, "PixelFormat:", &Font12, BLACK, WHITE);
+    Paint_DrawString_EN(450, 345, ident_display_format, &Font12, BLACK, WHITE);
+
+    char resolutionString[12];
+    snprintf(resolutionString, 12, "%d x %d", ident_display_width, ident_display_height);
+
+    Paint_DrawString_EN(325, 360, "Resolution:", &Font12, BLACK, WHITE);
+    Paint_DrawString_EN(450, 360, resolutionString, &Font12, BLACK, WHITE);
+
+    Paint_DrawString_EN(195, 450, "Waiting for the PicoPaper connection to upload an image...", &Font12, BLACK, WHITE);
 
     Paint_DrawRectangle(1, 1, EPD_7IN5_V2_WIDTH-1, EPD_7IN5_V2_HEIGHT-1, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
     Paint_DrawRectangle(5, 5, EPD_7IN5_V2_WIDTH-5, EPD_7IN5_V2_HEIGHT-5, BLACK, DOT_PIXEL_3X3, DRAW_FILL_EMPTY);

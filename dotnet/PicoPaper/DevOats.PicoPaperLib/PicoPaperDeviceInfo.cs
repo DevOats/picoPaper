@@ -12,6 +12,7 @@ namespace DevOats.PicoPaperLib
         public string Device { get; set; } = default!;
         public string Version { get; set; } = default!;
         public DisplayInfo Display { get; set; } = default!;
-
+        public string Board { get; set; } = default!;
+        public string Id { get; set; } = default!;
     }
 }
