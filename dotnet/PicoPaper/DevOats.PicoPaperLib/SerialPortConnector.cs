@@ -17,6 +17,7 @@ namespace DevOats.PicoPaperLib
     internal class SerialPortConnector
     {
 
+        private const string DebugMessageStart = "~DBG#";
         private const string responseMsgAckStart = "~ACK#";
         private const string responseMsgErrorStart = "~ERR#";
         private const string responseMsgEnd = "^";
@@ -142,6 +143,12 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public void ResetCommProtocol()
         {
+
+            if ((serialPort == null) || !serialPort.IsOpen)
+            {
+                Connect(serialPortName);
+            }
+
             serialPort?.Write($"{ProtocolResetChar}");
         }
 
@@ -224,6 +231,12 @@ namespace DevOats.PicoPaperLib
                 message = message.Remove(0, responseMsgErrorStart.Length);
                 message = message.Remove(message.Length - responseMsgEnd.Length);
             }
+            else if (message.StartsWith(DebugMessageStart) && message.EndsWith(responseMsgEnd))
+            {
+                responseType = ResponseTypes.Debug;
+                message = message.Remove(0, DebugMessageStart.Length);
+                message = message.Remove(message.Length - responseMsgEnd.Length);
+            }
             else
             {
                 responseType = ResponseTypes.Invalid;
@@ -231,8 +244,16 @@ namespace DevOats.PicoPaperLib
 
             message = message.Trim();
 
-            DeviceResponse response = new DeviceResponse(message, responseType);
-            responseReceivedHandler?.Invoke(response);
+            if (responseType == ResponseTypes.Debug)
+            {
+                Console.WriteLine(message);
+            }
+            else
+            {
+                DeviceResponse response = new DeviceResponse(message, responseType);
+                responseReceivedHandler?.Invoke(response);
+            }
+            
         }
 
     }

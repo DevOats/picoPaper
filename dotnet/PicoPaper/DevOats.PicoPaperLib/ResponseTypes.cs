@@ -10,6 +10,7 @@ namespace DevOats.PicoPaperLib
     {
         Invalid,
         Error,
-        Ack
+        Ack,
+        Debug
     }
 }

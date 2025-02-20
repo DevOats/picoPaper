@@ -74,6 +74,8 @@ target_link_libraries(PicoPaper
         GUI 
         Fonts 
         Config
+        pico_stdlib
+        pico_unique_id
         )
 
 pico_add_extra_outputs(PicoPaper)

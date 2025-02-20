@@ -8,4 +8,4 @@ include_directories(../lib/e-Paper)
 
 # Generate the link library
 add_library(picoDisplay ${DIR_picoDisplay_SRCS})
-target_link_libraries(picoDisplay PUBLIC Config hardware_timer)
+target_link_libraries(picoDisplay PUBLIC Config hardware_timer pico_stdlib pico_unique_id)

@@ -1,5 +1,7 @@
 #include "EPD_7in5_V2.h"
 #include "pico/time.h"
+#include "pico/stdlib.h"
+#include "pico/unique_id.h"
 #include <math.h>
 
 #include "DEV_Config.h"
@@ -31,6 +33,7 @@ const char* ACK_DISPLAY_IMG_BUFFER = "DISPLAY\0";
 
 const char* ACK_MESSAGE_START = "~ACK#\0";
 const char* ERROR_MESSAGE_START = "~ERR#\0";
+const char* DEBUG_MESSAGE_START = "~DBG#\0";
 const char* MESSAGE_END = "^\n\0";
 
 const UBYTE CMD_DEVICE_IDENT = 0x01;
@@ -88,13 +91,46 @@ void resetByteMsgRx(void);
 void resetUartStateMachine(void);
 void sendAckMessage(const char* message);
 void sendErrorMessage(const char* message);
+void sendDebugMessage(const char* message);
 void showSplashScreen(void);
+void runIdentCommand(void);
+void getPicoSerialNumber(char* idChars);
+char* createIdentJson(void);
+
+
 
 void picoDisplay_run(void)
 {
     initialize();
     showSplashScreen();
     listenOnUart();
+}
+
+
+// idChars should contain room for 16 chars + 1 null terminator (17 bytes)
+void getPicoSerialNumber(char* idChars) {
+    pico_unique_board_id_t id;
+    pico_get_unique_board_id(&id);
+
+    char hexByte[3];
+    hexByte[2] = '\0';
+
+    for (int i = 0; i < 8; i++) {
+        snprintf(hexByte, 3, "%02X", id.id[i]);
+        idChars[i*2] = hexByte[0];
+        idChars[i*2+1] = hexByte[1];
+    }
+    idChars[16] = '\0';
+}
+
+
+char* createIdentJson(){
+
+    char serialString[17];
+    getPicoSerialNumber(serialString);
+
+    sendDebugMessage(serialString);
+
 }
 
 
@@ -227,7 +263,7 @@ void ProcessByteReceived(UBYTE msg){
 void selectNewRxFuntion(UBYTE msg){
     switch(msg){
         case CMD_DEVICE_IDENT:
-            sendAckMessage(identString);
+            runIdentCommand();
             rxFunctionState = RX_FUNCTION_IDLE;
             break;
         case CMD_IMG_RX:
@@ -256,6 +292,11 @@ void selectNewRxFuntion(UBYTE msg){
 }
 
 
+void sendDebugMessage(const char* message){
+    printf("%s%s%s", DEBUG_MESSAGE_START, message, MESSAGE_END);
+}
+
+
 void sendAckMessage(const char* message){
     printf("%s%s%s", ACK_MESSAGE_START, message, MESSAGE_END);
 }
@@ -267,7 +308,6 @@ void sendErrorMessage(const char* message){
 
 
 void receiveNextImageByte(UBYTE msg){
-    
     //printf("BlackImage[%d] = 0x%2x\n", imageRxIndex, msg);
 
     BlackImage[imageRxIndex] = msg;
@@ -278,6 +318,13 @@ void receiveNextImageByte(UBYTE msg){
         sendAckMessage(ACK_IMAGE_RECEIVED_MSG);
         rxFunctionState = RX_FUNCTION_IDLE;
     }
+}
+
+
+void runIdentCommand(){
+    
+    sendAckMessage(identString);
+    createIdentJson();
 }
 
 
