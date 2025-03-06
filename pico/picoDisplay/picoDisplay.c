@@ -18,6 +18,7 @@ typedef enum rxByteStateEnum{
 typedef enum rxFunctionStateEnum{
     RX_FUNCTION_IDLE,
     RX_FUNCTION_IMAGERX,
+    RX_FUNCTION_DRAWSTRING,
 } rxFunctionStates;
 
 rxByteStates rxByteState = WAITING_FOR_START; 
@@ -25,6 +26,9 @@ rxFunctionStates rxFunctionState = RX_FUNCTION_IDLE;
 
 const char BYTE_START_CHAR = ':';
 const char UART_RESET_CHAR = '/';
+
+char drawStringRxBuffer[255];
+int drawStringRxBufferIndex = 0;
 
 const char* ACK_IMAGE_RECEIVED_MSG = "IMG_RCVD\0";
 const char* ACK_CLEAR_DISPLAY_MSG = "CLR_SCR\0";
@@ -41,6 +45,30 @@ const UBYTE CMD_IMG_RX = 0x02;
 const UBYTE CMD_IMG_DISPLAY = 0x03;
 const UBYTE CMD_CLEAR_DISPLAY = 0x04;
 const UBYTE CMD_DISPLAY_SPLASH = 0x05;
+const UBYTE CMD_DRAW_STRING = 0x06;
+
+//
+// Draw string command: 
+// [0x06][XXX][YYY][font][color][bgColor][stringLength][^\n]
+//
+// XXX: 3 characters X position
+// YYY: 3 characters Y position
+// 
+// Font: 2 characters: 08, 12, 16, 20, 24
+//
+// color: 1 Character: Text color. 1 for black. 0 for white
+//
+// bgColor: 1 Character: Backgroud color. 1 for black. 0 for white
+//
+// Stringlength: 3 characters. The length of the string.
+//
+// String: The string to display. 
+// The length of the string is defined by the stringLength field. 
+// Does NOT need to be null terminated. NewLines inside the string are not supported.
+//
+// [^\n]: End of message character. This is a caret (^) followed by a newline character.
+//
+
 
 
 const char* ident_device = "PicoPaper\0";
@@ -99,7 +127,8 @@ void runIdentCommand(void);
 void getPicoSerialNumber(char* idChars);
 int createIdentJson(char* identJson, int maxLength);
 int buildIdentString(char* targetString, int length, char* serial);
-
+void receiveNextDrawStringByte(UBYTE msg);
+void processCompleteDrawStringCommand(void);
 
 void picoDisplay_run(void)
 {
@@ -275,6 +304,10 @@ void ProcessByteReceived(UBYTE msg){
             receiveNextImageByte(msg);
             break;
 
+        case RX_FUNCTION_DRAWSTRING:
+            receiveNextDrawStringByte(msg);
+            break;
+
         default:
             // Unsupported RxFunctionState 
             printf(ERROR_MESSAGE_START);
@@ -308,12 +341,93 @@ void selectNewRxFuntion(UBYTE msg){
             runDisplaySplashScreenCommand();
             rxFunctionState = RX_FUNCTION_IDLE;
             break;
+        case CMD_DRAW_STRING:
+            //printf("Received command to draw string\n");
+            rxFunctionState = RX_FUNCTION_DRAWSTRING;
+            drawStringRxBufferIndex = 0;
+            break;
         default:
             // Unsuppported command
             sendErrorMessage("Unsupported command: 0x%2x");
             rxFunctionState = RX_FUNCTION_IDLE;
             break;
     }
+}
+
+void receiveNextDrawStringByte(UBYTE msg)
+{
+    drawStringRxBuffer[drawStringRxBufferIndex] = msg;
+    drawStringRxBufferIndex++;
+
+    if(drawStringRxBufferIndex >= 255){
+        sendErrorMessage("DrawString buffer overflow");
+        rxFunctionState = RX_FUNCTION_IDLE;
+    }
+
+    if(msg == '\n' && drawStringRxBuffer[drawStringRxBufferIndex -2] == '^'){
+        processCompleteDrawStringCommand();
+    }
+
+}
+
+
+void processCompleteDrawStringCommand(void){
+
+
+    char xString[4];
+    char yString[4];
+    char fontString[3];
+    char colorString[2];
+    char bgColorString[2];
+    char stringLengthString[4];
+    char contentString[255];
+    
+    strncpy(xString, drawStringRxBuffer, 3);
+    xString[3] = '\0';
+
+    strncpy(yString, drawStringRxBuffer + 3, 3);
+    yString[3] = '\0';
+
+    strncpy(fontString, drawStringRxBuffer + 6, 2);
+    fontString[2] = '\0';
+
+    strncpy(colorString, drawStringRxBuffer + 8, 1);
+    colorString[1] = '\0';
+
+    strncpy(bgColorString, drawStringRxBuffer + 9, 1);
+    bgColorString[1] = '\0';
+
+    strncpy(stringLengthString, drawStringRxBuffer + 10, 3);
+    stringLengthString[3] = '\0';
+
+
+    int x = atoi(xString);
+    int y = atoi(yString);
+    int font = atoi(fontString);
+    int color = atoi(colorString);
+    int bgColor = atoi(bgColorString);
+    int stringLength = atoi(stringLengthString);
+
+    // Font = 
+    // foreColor = //
+    // bgColor = //
+    
+    // Todo: Figure out string length before copying the content
+
+    if(stringLength < 240){
+
+        strncpy(contentString, drawStringRxBuffer + 13, stringLength);
+        contentString[stringLength] = '\0';
+
+        Paint_DrawString_EN(x, y, contentString, &Font24, color, bgColor);
+
+        sendAckMessage(ACK_DISPLAY_IMG_BUFFER);
+    }
+    else{
+        sendErrorMessage("String too long");
+    }
+
+    rxFunctionState = RX_FUNCTION_IDLE;
 }
 
 
