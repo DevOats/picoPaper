@@ -24,6 +24,8 @@ namespace DevOats.PicoPaperLib
         private string AckMessageSplashScreen = "SPLASH";
         private string AckMessageBufferDisplayed = "DISPLAY";
 
+        private readonly Object deviceAccessLock = new();
+
 
         /// <summary>
         /// Gets whether the serial port is connected
@@ -49,8 +51,11 @@ namespace DevOats.PicoPaperLib
         /// <param name="portName">The comport name (e.g. "com4")</param>
         public void Connect(string portName)
         {
-            connection.Connect(portName);
-            connection.ResetCommProtocol();
+            lock (deviceAccessLock)
+            {
+                connection.Connect(portName);
+                connection.ResetCommProtocol();
+            }
         }
 
 
@@ -59,16 +64,19 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public PicoPaperDeviceInfo Ident()
         {
-            try
+            lock (deviceAccessLock)
             {
-                connection.SendDataByte(PicoPaperCommands.Ident);
-                DeviceResponse response = WaitForResponse();
-                PicoPaperDeviceInfo identInfo = ParseIdentInfo(response.Message);
-                return identInfo;
-            }
-            catch (IOException ex)
-            {
-                throw new PicoPaperException($"Communication Exception getting Identification information: " + ex.Message, ex);
+                try
+                {
+                    connection.SendDataByte(PicoPaperCommands.Ident);
+                    DeviceResponse response = WaitForResponse();
+                    PicoPaperDeviceInfo identInfo = ParseIdentInfo(response.Message);
+                    return identInfo;
+                }
+                catch (IOException ex)
+                {
+                    throw new PicoPaperException($"Communication Exception getting Identification information: " + ex.Message, ex);
+                }
             }
         }
 
@@ -78,15 +86,18 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public void ShowSplash()
         {
-            try
+            lock (deviceAccessLock)
             {
-                connection.SendDataByte(PicoPaperCommands.ShowSplashScreen);
-                DeviceResponse response = WaitForResponse();
-                ValidateAck(response, AckMessageSplashScreen);
-            }
-            catch (IOException ex)
-            {
-                throw new PicoPaperException($"Communication Exception while showing splash screen: " + ex.Message, ex);
+                try
+                {
+                    connection.SendDataByte(PicoPaperCommands.ShowSplashScreen);
+                    DeviceResponse response = WaitForResponse();
+                    ValidateAck(response, AckMessageSplashScreen);
+                }
+                catch (IOException ex)
+                {
+                    throw new PicoPaperException($"Communication Exception while showing splash screen: " + ex.Message, ex);
+                }
             }
         }
 
@@ -96,15 +107,18 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public void ClearDisplay()
         {
-            try
+            lock (deviceAccessLock)
             {
-                connection.SendDataByte(PicoPaperCommands.ClearDisplay);
-                DeviceResponse response = WaitForResponse();
-                ValidateAck(response, AckMessageClearDisplay);
-            }
-            catch (IOException ex)
-            {
-                throw new PicoPaperException($"Communication Exception while clearing display: " + ex.Message, ex);
+                try
+                {
+                    connection.SendDataByte(PicoPaperCommands.ClearDisplay);
+                    DeviceResponse response = WaitForResponse();
+                    ValidateAck(response, AckMessageClearDisplay);
+                }
+                catch (IOException ex)
+                {
+                    throw new PicoPaperException($"Communication Exception while clearing display: " + ex.Message, ex);
+                }
             }
         }
 
@@ -114,13 +128,16 @@ namespace DevOats.PicoPaperLib
         /// </summary>
         public void ResetCommProtocol()
         {
-            try
+            lock (deviceAccessLock)
             {
-                connection.ResetCommProtocol();
-            }
-            catch (IOException ex)
-            {
-                throw new PicoPaperException($"Communication Exception while resetting protocol: " + ex.Message, ex);
+                try
+                {
+                    connection.ResetCommProtocol();
+                }
+                catch (IOException ex)
+                {
+                    throw new PicoPaperException($"Communication Exception while resetting protocol: " + ex.Message, ex);
+                }
             }
         }
 
@@ -131,13 +148,16 @@ namespace DevOats.PicoPaperLib
         /// <param name="clearDisplay">When true (default), the Clear Display command will be issues before disconnecting to prevent damage during storage</param>
         public void Disconnect(bool clearDisplay = true)
         {
-            if (clearDisplay)
+            lock (deviceAccessLock)
             {
-                // Clear the screen to prevent damage during long term storage
-                // Send the instruction without waiting for the response
-                connection.SendDataByte(PicoPaperCommands.ClearDisplay);    
+                if (clearDisplay)
+                {
+                    // Clear the screen to prevent damage during long term storage
+                    // Send the instruction without waiting for the response
+                    connection.SendDataByte(PicoPaperCommands.ClearDisplay);
+                }
+                connection.Disconnect();
             }
-            connection.Disconnect();
         }
 
 
@@ -147,28 +167,32 @@ namespace DevOats.PicoPaperLib
         /// <param name="image">The image to be displayed</param>
         public void DisplayBitmap(Bitmap image)
         {
-            try
+            lock (deviceAccessLock)
             {
-                if ((image.Width != 800) || (image.Height != 480))
+                try
                 {
-                    throw new ArgumentException("Unsupported image dimensions. Only 800 x 480 is supported");
+                    if ((image.Width != 800) || (image.Height != 480))
+                    {
+                        throw new ArgumentException("Unsupported image dimensions. Only 800 x 480 is supported");
+                    }
+
+                    ImageParser parser = new ImageParser();
+                    byte[] imgData = parser.ParseBitmap(image);
+
+                    connection.SendDataByte(PicoPaperCommands.StartImageTx);
+                    connection.SendDataBytes(imgData);
+                    DeviceResponse response = WaitForResponse();
+                    ValidateAck(response, AckMessageImageReceived);
+
+                    connection.SendDataByte(PicoPaperCommands.DisplayImageBuffer);
+                    response = WaitForResponse();
+                    ValidateAck(response, AckMessageBufferDisplayed);
+
                 }
-
-                ImageParser parser = new ImageParser();
-                byte[] imgData = parser.ParseBitmap(image);
-
-                connection.SendDataByte(PicoPaperCommands.StartImageTx);
-                connection.SendDataBytes(imgData);
-                DeviceResponse response = WaitForResponse();
-                ValidateAck(response, AckMessageImageReceived);
-
-                connection.SendDataByte(PicoPaperCommands.DisplayImageBuffer);
-                response = WaitForResponse();
-                ValidateAck(response, AckMessageBufferDisplayed);
-
-            } catch(IOException ex)
-            {
-                throw new PicoPaperException($"Communication Exception while displaying image: " + ex.Message, ex);
+                catch (IOException ex)
+                {
+                    throw new PicoPaperException($"Communication Exception while displaying image: " + ex.Message, ex);
+                }
             }
         }
 
