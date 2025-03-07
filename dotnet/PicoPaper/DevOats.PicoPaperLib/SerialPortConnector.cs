@@ -116,8 +116,6 @@ namespace DevOats.PicoPaperLib
                 serialPort.Handshake = DefaultHandshake;
                 serialPort.DtrEnable = true;
                 serialPort.RtsEnable = true;
-                serialPort.ReadTimeout = 500;
-                serialPort.WriteTimeout = 500;
                 serialPort.Open();
 
                 StartreaderThread();
@@ -157,7 +155,6 @@ namespace DevOats.PicoPaperLib
         /// Sends a single databyte to the PicoPaper device
         /// </summary>
         /// <param name="data"></param>
-        public void SendDataByte(byte data)
         {
             StringBuilder builder = new StringBuilder();
             builder.Append(DatabyteStartChar);
